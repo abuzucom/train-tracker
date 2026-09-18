@@ -9,6 +9,14 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] (2026-09-18)
+
+### Fixed
+- Restore the handoff guidance in `README.md` that the adopted wiring tests
+  `test_handoff_requires_active_user_request` and
+  `test_handoff_prescribes_no_pre_consent_git_command` assert on. The rewritten
+  project README had dropped it.
+
 ## [0.1.0] (2026-09-18)
 
 ### Added
