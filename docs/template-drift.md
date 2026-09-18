@@ -58,6 +58,24 @@ byte-identical to the template, and `scripts/sync.py --check-shared` confirms
 all 17 shared digests match, so the template's measured baseline describes this
 checkout. Regenerate it in a non-root environment when one is available.
 
+## Adapted wiring
+
+`.github/workflows/sync-check.yml` names this repository's prose files in the
+four prose and ASCII steps, in place of the template's own. The template lists
+`DRIFT.md` and two `adopters/*.md` records, which belong to `abuzucom/agents`
+and do not exist here. `check_us_spelling.py` raised `FileNotFoundError` on
+`DRIFT.md` and failed the job.
+
+The replacements are `docs/template-drift.md`, `docs/project-orientation.md`,
+`docs/pr-security-review.md`, `docs/deploy.md`, and
+`docs/recon/feed-behavior.md`. Prose coverage is broader than the template's
+list rather than narrower. Adoption step 14 anticipates this: an adopter adapts
+wiring to the subset it adopted.
+
+The failure surfaced late because a job step aborts the rest. On the adoption
+pull request the changelog range check failed earlier in the same job, so these
+steps never ran.
+
 ## Local additions
 
 `.github/workflows/worker-tests.yml` is this repository's own workflow, in the

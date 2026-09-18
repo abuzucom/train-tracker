@@ -9,6 +9,22 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] (2026-09-18)
+
+### Changed
+- Record in `docs/pr-security-review.md` that the reusable security review
+  checks out the base commit, so `ci/` and
+  `scripts/check_pr_review_response.py` are read from `main` rather than from
+  the pull request. A pull request adding one of those files cannot make its
+  own `security-review` check pass.
+
+### Fixed
+- Name this repository's prose files in the four prose and ASCII steps of
+  `.github/workflows/sync-check.yml`. The template listed `DRIFT.md` and two
+  `adopters/*.md` records, which belong to `abuzucom/agents` and are absent
+  here, so `check_us_spelling.py` failed on a missing file. The replacements
+  cover more prose than the template's list.
+
 ## [0.2.1] (2026-09-18)
 
 ### Fixed

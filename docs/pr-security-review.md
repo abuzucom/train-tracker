@@ -24,13 +24,27 @@ pin deliberately, and record the change in `CHANGELOG.md` and
 from this repository's checkout. Foucault supplies only `AUDIT.md` at runtime.
 
 `scripts/check_pr_review_response.py` is copied from the same revision and is
-also required. The reusable workflow runs it from the caller's checkout to
-validate the model's response contract, and retries the model call once when
-the first response fails validation. Foucault's own
-`docs/pr-security-review.md` lists only the `ci/` directory under what the
-adopter supplies, so this file is easy to miss. Without it the review job fails
-with `No such file or directory` rather than with a verdict. It uses only the
-Python standard library.
+also required. The reusable workflow runs it to validate the model's response
+contract, retrying the model call once when the first response fails
+validation. Foucault's own `docs/pr-security-review.md` lists only the `ci/`
+directory under what the adopter supplies, so this file is easy to miss.
+Without it the review job fails with `No such file or directory` instead of
+returning a verdict. It uses only the Python standard library.
+
+**These files are read from the base branch, not from the pull request.** The
+reusable workflow checks out `base_sha`, so `ci/` and
+`scripts/check_pr_review_response.py` must already exist on `main` for the
+review to run. That is the trust boundary: pull request content stays review
+data and is never executed.
+
+The consequence is a bootstrap case. A pull request that adds one of these
+files cannot make its own `security-review` check pass, because the check runs
+the base branch's copy, which does not have it yet. The file has to reach
+`main` first, either by merging that pull request with the check red or by an
+active human committing it to `main`. Every later pull request then gets a real
+verdict. The same shape applies to any future change to `ci/` or to this
+checker: the new code takes effect for the pull request after the one that
+introduces it.
 
 `fail_on_block: true`, so a `BLOCK` or `NEEDS-HUMAN` verdict fails the check.
 
