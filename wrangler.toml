@@ -1,0 +1,34 @@
+# Cloudflare Worker configuration for the crossing poller.
+#
+# This file is repository content. Agents author it and never apply it: no
+# deploy, no `wrangler` invocation, no `d1 execute`. The active human applies
+# every infrastructure act. No checker enforces that boundary, so it is a human
+# control rather than an enforced one.
+#
+# database_id is intentionally empty. Fill it with the identifier printed by
+# `wrangler d1 create` before the first deploy. See docs/deploy.md.
+
+name = "train-tracker-poller"
+main = "src/index.js"
+compatibility_date = "2026-09-18"
+
+# Every minute, continuously. The corridor's traffic is sporadic and
+# concentrated in three local windows, but the poller is deliberately not
+# aligned to them: a continuous schedule has nothing to drift out of alignment
+# when Houston changes between CDT and CST.
+#
+# At the stated 25 mph, adjacent crossings block 1.3 to 2.3 minutes apart, so
+# this yields roughly two samples per inter-crossing gap. That is adequate for
+# the ordering that direction inference will need later. Blocked or clear needs
+# far less.
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "train-tracker"
+database_id = ""
+migrations_dir = "migrations"
+
+[observability]
+enabled = true

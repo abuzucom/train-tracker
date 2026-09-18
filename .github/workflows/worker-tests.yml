@@ -1,0 +1,33 @@
+name: Worker Tests
+
+# Runs the Worker's own test suite. The adopted compliance workflows cover the
+# Python gates; this covers src/ and test/.
+#
+# No setup-node step: the GitHub runner image ships a Node release that already
+# satisfies the engines constraint, and the suite uses only node:test and
+# node:assert from the standard library. Adding an action would add a
+# dependency to pin for no gain.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  worker-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Report the Node version under test
+        run: node --version
+      - name: Run the Worker test suite
+        run: npm test

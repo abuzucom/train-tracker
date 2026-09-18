@@ -9,6 +9,30 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] (2026-09-18)
+
+### Added
+- Add the crossing poller: `src/index.js` runs one poll per cron invocation,
+  `src/feed.js` reads and validates the upstream snapshot, `src/store.js`
+  persists state and transitions, and `src/corridor.js` holds the 11 corridor
+  crossings as the single source of truth.
+- Add `migrations/0001_init.sql` creating `crossing`, `crossing_state`,
+  `crossing_event`, and `poll_run`, and `migrations/0002_seed_crossings.sql`
+  seeding the corridor. Both are re-runnable.
+- Add `wrangler.toml` with the every-minute cron trigger and the D1 binding.
+  The file is authored as repository content and applied only by an active
+  human, per `docs/deploy.md`.
+- Add `package.json` declaring `npm test` as `node --test test/`. The Worker
+  carries no dependency, runtime or development.
+- Add the test suite under `test/`, covering URL stability, snapshot
+  validation, failure containment, transition detection, idempotency, and
+  agreement between the seed migration and `src/corridor.js`.
+- Add `.github/workflows/worker-tests.yml` running the suite on pull requests
+  and pushes to `main`.
+- Add `docs/recon/feed-behavior.md` recording the observed feed behavior, the
+  four traps, the open question about corridor sensors, and the timezone
+  handling rule. Add `docs/deploy.md` with the human deployment steps.
+
 ## [0.1.1] (2026-09-18)
 
 ### Fixed

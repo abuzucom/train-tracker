@@ -58,6 +58,26 @@ byte-identical to the template, and `scripts/sync.py --check-shared` confirms
 all 17 shared digests match, so the template's measured baseline describes this
 checkout. Regenerate it in a non-root environment when one is available.
 
+## Local additions
+
+`.github/workflows/worker-tests.yml` is this repository's own workflow, in the
+"expected to differ" category. It runs `npm test` on pull requests and pushes
+to `main`. It adds no action beyond the `actions/checkout` pin the adopted
+workflows already use, and it sets `persist-credentials: false`. It omits a
+`setup-node` step because the runner image already satisfies the `engines`
+constraint and the suite uses only the Node standard library, so adding an
+action would add a pin to maintain for no gain.
+
+The adopted branch gate, `hooks/enforce_branch_name.py`, allowlists specific
+programs in `INSPECTABLE_PROGRAMS` and specific workflow scripts in
+`WORKFLOW_SCRIPT_ARGUMENTS`. `node` appears in neither, so an agent working in
+this repository cannot run `npm test`. That is designed gate behavior, not a
+defect, and the hook is unmodified: Rule 18 forbids narrowing a gate and Rule
+22 requires fresh active-human consent before editing a hook file. The
+consequence is that the Worker suite is written by agents and verified in CI.
+The validation-first workflow's "run the failing test first" step therefore
+happens in CI rather than locally for JavaScript changes.
+
 ## Not adopted from foucault
 
 `adopters/train-tracker.md` belongs in `abuzucom/foucault`, whose
