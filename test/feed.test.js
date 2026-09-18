@@ -160,6 +160,55 @@ test("fetchSnapshot accepts a body within the size bound", async () => {
   assert.equal(result.rows.length, CORRIDOR_CROSSING_COUNT);
 });
 
+test("fetchSnapshot bounds a body that declares no length", async () => {
+  // A real Response exercises the streaming path. Chunked transfer encoding
+  // and an absent content-length both leave declaredLength null, so the
+  // byte counter is the only thing standing between an oversized body and
+  // an out-of-memory kill that would leave no poll_run row behind.
+  const chunk = new TextEncoder().encode("x".repeat(256 * 1024));
+  let sent = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      // Ten chunks would reach 2.5 MiB. The counter must stop the read well
+      // before the last one arrives.
+      if (sent >= 10) {
+        controller.close();
+        return;
+      }
+      sent += 1;
+      controller.enqueue(chunk);
+    },
+  });
+  const response = new Response(stream);
+  assert.equal(response.headers.get("content-length"), null);
+  const result = await fetchSnapshot(async () => response);
+  assert.equal(result.rows, null);
+  assert.match(result.error, /oversized body/);
+  assert.ok(sent < 10, "the read consumed the whole oversized body");
+});
+
+test("fetchSnapshot parses a streamed body within the bound", async () => {
+  const response = new Response(JSON.stringify(allClearPayload()));
+  const result = await fetchSnapshot(async () => response);
+  assert.equal(result.rows.length, CORRIDOR_CROSSING_COUNT);
+  assert.equal(result.error, null);
+});
+
+test("readText strips separators a parser treats as line terminators", () => {
+  const payload = allClearPayload();
+  // U+2028 and U+2029 end a line for a JavaScript parser and several log
+  // viewers, so an ASCII-only class would narrow the forging rather than
+  // close it. U+202E reverses rendering order.
+  payload.features[0].attributes.timeToClear = "5 MIN X‮Y";
+  const rows = parseSnapshot(payload);
+  for (const forbidden of [" ", " ", "‮"]) {
+    assert.ok(
+      !rows[0].feedTimeToClear.includes(forbidden),
+      `stored text retained ${JSON.stringify(forbidden)}`,
+    );
+  }
+});
+
 test("fetchSnapshot records a non-Error throw without losing the reason", async () => {
   const result = await fetchSnapshot(async () => {
     throw "upstream refused";

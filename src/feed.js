@@ -39,8 +39,17 @@ const OUT_FIELDS = [
 /** The two values the upstream `crossingStatus` domain allows. */
 const VALID_STATUSES = Object.freeze(new Set(["clear", "blocked"]));
 
-/** ASCII control characters, removed from upstream text before it is stored. */
-const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/g;
+/**
+ * Characters removed from upstream text before it is stored.
+ *
+ * The ASCII control range and DEL, plus the separators a JavaScript parser and
+ * several log viewers treat as line terminators, the bidirectional overrides,
+ * and the byte order mark. Restricting the class to ASCII would narrow the
+ * record-boundary forging this guards against rather than close it, since
+ * U+2028 and U+2029 end a line for those readers just as a newline does.
+ */
+const CONTROL_CHARACTERS =
+  /[\u0000-\u001F\u007F  ‪-‮﻿]/g;
 
 /** Longest upstream fragment repeated back inside an error message. */
 const MAX_DESCRIBED_CHARS = 80;
@@ -62,8 +71,15 @@ const FETCH_TIMEOUT_MS = 20_000;
  * Largest upstream body accepted, in bytes.
  *
  * The filtered query returns about 2 KB. The row-count guard runs only after
- * parsing, so an oversized body would already be resident. This bound rejects
- * the read first.
+ * parsing, so an oversized body would already be resident. The bound is
+ * enforced while reading rather than from the declared length alone: a body
+ * sent with chunked transfer encoding, or with no `content-length` at all,
+ * would otherwise restore the unbounded parse.
+ *
+ * An out-of-memory kill carries the same consequence as a stalled read. The
+ * invocation dies before the failed run reaches D1, no `poll_run` row appears,
+ * and the absence reads as "the Worker never ran". Bounding the read keeps
+ * that fault reportable.
  */
 const MAX_BODY_BYTES = 1_048_576;
 
@@ -228,7 +244,7 @@ export async function fetchSnapshot(fetchImpl) {
   }
   let body;
   try {
-    body = await response.json();
+    body = await readBoundedBody(response);
   } catch (error) {
     return failure(response.status, `unreadable body: ${reason(error)}`);
   }
@@ -242,6 +258,45 @@ export async function fetchSnapshot(fetchImpl) {
   } catch (error) {
     return failure(response.status, reason(error));
   }
+}
+
+/**
+ * Read and parse the body, refusing to hold more than the byte bound.
+ *
+ * Counting while reading is what makes the bound real. A declared length is a
+ * claim the upstream may omit or misstate, so it serves only as an early
+ * rejection above.
+ *
+ * A runtime that exposes no readable stream falls back to the parser's own
+ * read. Every runtime this Worker targets exposes one, so the fallback covers
+ * test doubles rather than production.
+ */
+async function readBoundedBody(response) {
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    return response.json();
+  }
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    received += value.byteLength;
+    if (received > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw new Error(`oversized body: exceeded ${MAX_BODY_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  const joined = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(joined));
 }
 
 /** Return the declared body size in bytes, or null when absent or unusable. */

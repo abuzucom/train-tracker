@@ -9,6 +9,20 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] (2026-09-18)
+
+### Fixed
+- Enforce the body bound while reading rather than from the declared length
+  alone. A body sent with chunked transfer encoding, or with no
+  `content-length`, left the guard fail-open and restored the unbounded parse.
+  An out-of-memory kill carries the same consequence as a stalled read: the
+  invocation dies before the failed run reaches D1, so no `poll_run` row
+  appears and the absence reads as "the Worker never ran".
+- Extend the stripped character class beyond ASCII to `U+2028`, `U+2029`, the
+  bidirectional overrides, and the byte order mark. A JavaScript parser and
+  several log viewers end a line on `U+2028` and `U+2029`, so an ASCII-only
+  class narrowed the record-boundary forging rather than closing it.
+
 ## [0.2.3] (2026-09-18)
 
 ### Fixed
