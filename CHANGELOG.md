@@ -9,6 +9,29 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] (2026-09-18)
+
+### Fixed
+- Give the upstream read a 20 second deadline. Without one, an upstream that
+  accepts the connection and then stalls holds the invocation until the
+  runtime kills it, before the failed run reaches D1. The missing `poll_run`
+  row would then read as "the Worker never ran", recording a stalled upstream
+  as the one fault it is not and misreporting the gap signal the schema exists
+  to provide.
+- Reject a body whose declared length exceeds 1 MiB before parsing it. The
+  row-count guard runs only after parsing, so an oversized response was
+  already resident in memory by the time it was rejected.
+- Strip ASCII control characters from upstream text as it enters, and cap the
+  fragment repeated back inside an error message. Upstream text reaches
+  `poll_run.error`, where an embedded newline forges a record boundary for any
+  reader of that column.
+- Guard the null attribute bag explicitly. `typeof null` is `"object"`, so a
+  feature carrying `attributes: null` reached row parsing and raised a runtime
+  `TypeError` instead of the intended malformed-snapshot diagnostic,
+  degrading the only forensic record this system keeps.
+- Record a thrown value of any shape. Reading `error.message` on a non-Error
+  throw stored `undefined` as the reason for the one poll that failed.
+
 ## [0.2.2] (2026-09-18)
 
 ### Changed

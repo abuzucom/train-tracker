@@ -121,6 +121,88 @@ test("fetchSnapshot reports a transport failure without throwing", async () => {
   assert.match(result.error, /network unreachable/);
 });
 
+test("fetchSnapshot gives the upstream read a deadline", async () => {
+  // Without a deadline a stalled upstream holds the invocation until the
+  // runtime kills it, before the failed run reaches D1. The absent poll_run
+  // row would then read as "the Worker never ran", which is a different fault.
+  let options = null;
+  await fetchSnapshot(async (_url, received) => {
+    options = received;
+    return { ok: true, status: 200, json: async () => allClearPayload() };
+  });
+  assert.ok(options.signal, "no abort signal was passed");
+  assert.equal(typeof options.signal.aborted, "boolean");
+});
+
+test("fetchSnapshot rejects an oversized body before parsing it", async () => {
+  let parsed = false;
+  const result = await fetchSnapshot(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) => (name === "content-length" ? "99999999" : null) },
+    json: async () => {
+      parsed = true;
+      return allClearPayload();
+    },
+  }));
+  assert.equal(result.rows, null);
+  assert.match(result.error, /oversized body/);
+  assert.equal(parsed, false, "the body was parsed despite the size guard");
+});
+
+test("fetchSnapshot accepts a body within the size bound", async () => {
+  const result = await fetchSnapshot(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => "2048" },
+    json: async () => allClearPayload(),
+  }));
+  assert.equal(result.rows.length, CORRIDOR_CROSSING_COUNT);
+});
+
+test("fetchSnapshot records a non-Error throw without losing the reason", async () => {
+  const result = await fetchSnapshot(async () => {
+    throw "upstream refused";
+  });
+  assert.equal(result.rows, null);
+  assert.match(result.error, /upstream refused/);
+  assert.ok(!result.error.includes("undefined"));
+});
+
+test("parseSnapshot rejects a null attribute bag with its own diagnostic", () => {
+  // typeof null is "object", so this case needs its own guard. Without it the
+  // row raises a runtime TypeError instead of this message.
+  const payload = allClearPayload();
+  payload.features[0].attributes = null;
+  assert.throws(() => parseSnapshot(payload), /feature has no attributes/);
+});
+
+test("parseSnapshot strips control characters from stored text", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.timeToClear = "5\nMIN\r\nINJECTED";
+  const rows = parseSnapshot(payload);
+  assert.ok(!rows[0].feedTimeToClear.includes("\n"));
+  assert.ok(!rows[0].feedTimeToClear.includes("\r"));
+});
+
+test("parseSnapshot keeps newlines out of the message it throws", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.code = "440652H\nforged log line";
+  assert.throws(() => parseSnapshot(payload), (error) => {
+    assert.ok(!error.message.includes("\n"), "error message carries a newline");
+    return true;
+  });
+});
+
+test("parseSnapshot caps the upstream fragment it repeats back", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.code = "X".repeat(5000);
+  assert.throws(() => parseSnapshot(payload), (error) => {
+    assert.ok(error.message.length < 200, "error message is unbounded");
+    return true;
+  });
+});
+
 /** Return a fetch stub yielding one status and body. */
 function stubFetch(status, body) {
   return async () => ({
