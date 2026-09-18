@@ -1,0 +1,59 @@
+# Pull request security review
+
+This repository calls the `abuzucom/foucault` reusable model security review.
+Foucault's `docs/pr-security-review.md` owns the architecture and the trust
+boundary. This document records only the local wiring.
+
+## What runs
+
+`.github/workflows/security-review-pr.yml` triggers on completion of the
+`Immutable Compliance` workflow, resolves the pull request from the workflow
+run head, and calls foucault's `security-review.yml`. The review loads
+`AUDIT.md` from foucault at the pinned revision, sends one review envelope to
+the configured provider, posts a fenced report, and publishes a
+`security-review` check run.
+
+Both the reusable workflow and `audit_ref` are pinned to foucault commit
+`551a8000a33ba1955d5e9ed79c9f08daacc4ae99`, release 3.3.8. Keeping one
+revision for both means the policy and its runner never diverge. Change the
+pin deliberately, and record the change in `CHANGELOG.md` and
+`docs/template-drift.md`.
+
+`ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
+`ci/model_providers.json` are copied from that same foucault revision and run
+from this repository's checkout. Foucault supplies only `AUDIT.md` at runtime.
+
+`fail_on_block: true`, so a `BLOCK` or `NEEDS-HUMAN` verdict fails the check.
+
+A pull request from a fork receives an explicit skip result and no provider
+secret.
+
+## Required repository secret
+
+The review does not run until an active human adds the provider API key as a
+repository secret. No agent sets it, and no agent commits it.
+
+The active provider profile in `ci/model_providers.json` is Ollama with
+`kimi-k2.7-code`. The caller maps `secrets.OLLAMA_API_KEY` to the reusable
+workflow's `MODEL_API_KEY`.
+
+Add it under Settings, Secrets and variables, Actions, as `OLLAMA_API_KEY`.
+
+Until the secret exists, the `security-review` check fails. That failure is the
+absent secret, not a finding against the diff.
+
+To use another provider, change the active profile in
+`ci/model_providers.json` and the secret name in the caller's `secrets` block
+together. Provider endpoints stay allowlisted in the adapter.
+
+## Adopter record owed upstream
+
+Foucault's `adopters/README.md` asks each adopter to add
+`adopters/<repo>.md` in `abuzucom/foucault` recording the pinned revision and
+whether the reusable workflow is wired. That record is owed and not yet filed,
+because it requires a pull request against a repository this repository's
+automation does not write to.
+
+The record should state: adopter `abuzucom/train-tracker`, `AUDIT.md` pinned at
+`551a8000a33ba1955d5e9ed79c9f08daacc4ae99`, the reusable workflow wired at the
+same commit, and no customization of `AUDIT.md`.
