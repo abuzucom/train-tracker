@@ -9,6 +9,25 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] (2026-09-18)
+
+### Fixed
+- Target the Worker test files explicitly in `npm test`. Node 22 resolves a
+  bare `test/` argument as a module path and fails with `MODULE_NOT_FOUND`,
+  so the suite never ran. The glob also leaves fixtures and helpers out of the
+  run.
+- Add `scripts/check_pr_review_response.py`, copied from `abuzucom/foucault`
+  at the pinned revision. The reusable security review runs it from the
+  caller's checkout, so its absence failed the review job with a missing-file
+  error instead of a verdict.
+
+### Added
+- Add `tests/test_worker_tests_workflow.py` covering the Worker test
+  workflow's wiring and the manifest's test command. `scripts/check_test_first.py`
+  counts a workflow file as an executable change and accepts only a Python test
+  under `tests/`, and the workflow is the sole place the Worker suite runs
+  before review, so its wiring deserves the coverage regardless.
+
 ## [0.2.0] (2026-09-18)
 
 ### Added

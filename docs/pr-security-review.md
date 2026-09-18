@@ -23,6 +23,15 @@ pin deliberately, and record the change in `CHANGELOG.md` and
 `ci/model_providers.json` are copied from that same foucault revision and run
 from this repository's checkout. Foucault supplies only `AUDIT.md` at runtime.
 
+`scripts/check_pr_review_response.py` is copied from the same revision and is
+also required. The reusable workflow runs it from the caller's checkout to
+validate the model's response contract, and retries the model call once when
+the first response fails validation. Foucault's own
+`docs/pr-security-review.md` lists only the `ci/` directory under what the
+adopter supplies, so this file is easy to miss. Without it the review job fails
+with `No such file or directory` rather than with a verdict. It uses only the
+Python standard library.
+
 `fail_on_block: true`, so a `BLOCK` or `NEEDS-HUMAN` verdict fails the check.
 
 A pull request from a fork receives an explicit skip result and no provider
