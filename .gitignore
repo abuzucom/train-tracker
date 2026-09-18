@@ -1,3 +1,10 @@
+# Python checker tooling
+__pycache__/
+*.py[codz]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Logs
 logs
 *.log
