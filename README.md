@@ -11,8 +11,12 @@ that will exist and no source can backfill it.
 
 ## Status
 
-Governance tooling only. The Worker, its schema, and the frontend are not built
-yet.
+The poller and its schema are built. The frontend is not.
+
+Scope is blocked or clear only. Direction, blockage duration, and train type
+are deferred until the recorded transitions show the corridor's sensors report
+at all. `docs/recon/feed-behavior.md` explains why that question is still open
+and why a short sample cannot settle it.
 
 ## Repository layout
 
@@ -25,10 +29,20 @@ yet.
 | `docs/template-drift.md` | Local differences from the adopted templates |
 | `hooks/`, `scripts/`, `tests/` | Adopted gates, checkers, and their tests |
 | `ci/` | Model provider adapters for the security review |
+| `src/`, `test/` | The Worker and its suite |
+| `migrations/` | D1 schema and the corridor seed |
+| `docs/deploy.md` | Deployment steps, an active-human action |
+| `docs/recon/` | Observed feed behavior and its traps |
 
 ## Development
 
-Install the checker dependency, then run the checks:
+Run the Worker suite, which uses only the Node standard library:
+
+```console
+npm test
+```
+
+Install the checker dependency, then run the policy checks:
 
 ```console
 python -m pip install --requirement requirements-checkers.txt

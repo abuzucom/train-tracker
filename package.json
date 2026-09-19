@@ -1,0 +1,14 @@
+{
+  "name": "train-tracker",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Polls railroad crossing state on the Houston northwest corridor",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

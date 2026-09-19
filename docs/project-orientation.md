@@ -15,8 +15,14 @@ Obtain active-human consent before tests, scripts, or Makefile targets.
 | `make lint` | Style, spelling, language, and conflict-marker checks |
 | `python scripts/check_gate_adoption.py` | Gate completeness |
 
-The Worker test command arrives with the Worker itself. It is `npm test`,
-which runs `node --test` over `test/`. The Worker carries no dependency.
+`npm test` runs `node --test test/`, the Worker suite. The Worker carries no
+dependency, runtime or development, so no install step precedes it.
+
+The adopted branch gate allowlists a fixed set of programs and workflow
+scripts. `node` is not among them, so an agent cannot run `npm test` locally.
+That is designed gate behavior rather than a defect.
+`.github/workflows/worker-tests.yml` runs the suite on every pull request, so
+CI is where the Worker suite is verified.
 
 ## Do not touch
 
