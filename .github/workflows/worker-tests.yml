@@ -29,5 +29,16 @@ jobs:
           persist-credentials: false
       - name: Report the Node version under test
         run: node --version
+      - name: Check the Worker source holds only ASCII
+        # A literal U+2028 inside a regular expression literal ends it early,
+        # because the JavaScript parser treats that code point as a line
+        # terminator. That shipped once and broke every import in this suite.
+        # Separators belong in source as escape sequences, so the source stays
+        # ASCII and the parser cannot be surprised.
+        run: |
+          if LC_ALL=C grep -rnP '[^\x00-\x7F]' src test; then
+            echo "non-ASCII in source: write the code point as an escape" >&2
+            exit 1
+          fi
       - name: Run the Worker test suite
         run: npm test

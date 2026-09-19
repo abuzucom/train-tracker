@@ -9,6 +9,25 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] (2026-09-18)
+
+### Fixed
+- Build the stripped character class from escape sequences rather than a
+  regular expression literal holding the separators themselves. The literal
+  carried a real `U+2028`, which the JavaScript parser treats as a line
+  terminator, so the expression ended early and `src/feed.js` failed to parse.
+  Three of eight test files could not import it. The fix for record-boundary
+  forging had reproduced that hazard inside its own source.
+- Derive the separators in `test/feed.test.js` through `String.fromCharCode`
+  for the same reason, keeping the file ASCII.
+
+### Added
+- Add a step to `.github/workflows/worker-tests.yml` failing the build on any
+  code point above `U+007F` in `src` or `test`. Nothing guarded source files
+  before: `check_ascii.py` runs only over the prose list, and pointing it at
+  JavaScript would flag ordinary arithmetic under its dash rules.
+  `tests/test_worker_tests_workflow.py` asserts the step stays wired.
+
 ## [0.2.4] (2026-09-18)
 
 ### Fixed

@@ -54,6 +54,14 @@ class WorkerTestsWorkflowTest(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read", self.text)
         self.assertNotIn("write-all", self.text)
 
+    def test_workflow_guards_against_non_ascii_source(self):
+        # A literal U+2028 in a regular expression literal ends it early and
+        # broke every import in the Worker suite once. The guard keeps that
+        # code point out of source, where it belongs as an escape sequence.
+        self.assertIn("grep -rnP", self.text)
+        self.assertIn("src test", self.text)
+        self.assertIn("non-ASCII in source", self.text)
+
     def test_workflow_adds_no_setup_action(self):
         # The runner image already satisfies the engines constraint and the
         # suite uses only the Node standard library. An extra action would be

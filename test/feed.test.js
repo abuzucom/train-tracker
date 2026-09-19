@@ -10,6 +10,17 @@ import {
 import { CORRIDOR_CROSSING_COUNT } from "../src/corridor.js";
 import { allClearPayload, oneBlockedPayload } from "./fixtures/payloads.js";
 
+/**
+ * Separators built from code points so this file stays ASCII.
+ *
+ * Spelling them as themselves is what broke src/feed.js when the strip class
+ * was first written: U+2028 ends a line for the JavaScript parser, so the
+ * regular expression literal holding it terminated early.
+ */
+const LINE_SEPARATOR = String.fromCharCode(0x2028);
+const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
+const RTL_OVERRIDE = String.fromCharCode(0x202e);
+
 test("buildQueryUrl returns a byte-identical URL on every call", () => {
   assert.equal(buildQueryUrl(), buildQueryUrl());
   assert.equal(buildQueryUrl(), FEED_QUERY_URL);
@@ -83,6 +94,56 @@ test("parseSnapshot rejects a body with no features array", () => {
   assert.throws(() => parseSnapshot({}), /malformed/i);
 });
 
+test("parseSnapshot rejects a null attribute bag with its own diagnostic", () => {
+  // typeof null is "object", so this case needs its own guard. Without it the
+  // row raises a runtime TypeError instead of this message.
+  const payload = allClearPayload();
+  payload.features[0].attributes = null;
+  assert.throws(() => parseSnapshot(payload), /feature has no attributes/);
+});
+
+test("parseSnapshot strips control characters from stored text", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.timeToClear = "5\nMIN\r\nINJECTED";
+  const rows = parseSnapshot(payload);
+  assert.ok(!rows[0].feedTimeToClear.includes("\n"));
+  assert.ok(!rows[0].feedTimeToClear.includes("\r"));
+});
+
+test("parseSnapshot strips separators a parser treats as line terminators", () => {
+  // U+2028 and U+2029 end a line for a JavaScript parser and several log
+  // viewers, so an ASCII-only class would narrow the record-boundary forging
+  // rather than close it. U+202E reverses rendering order.
+  const payload = allClearPayload();
+  payload.features[0].attributes.timeToClear =
+    `5${LINE_SEPARATOR}MIN${PARAGRAPH_SEPARATOR}X${RTL_OVERRIDE}Y`;
+  const rows = parseSnapshot(payload);
+  for (const forbidden of [LINE_SEPARATOR, PARAGRAPH_SEPARATOR, RTL_OVERRIDE]) {
+    assert.ok(
+      !rows[0].feedTimeToClear.includes(forbidden),
+      `stored text retained ${JSON.stringify(forbidden)}`,
+    );
+  }
+});
+
+test("parseSnapshot keeps newlines out of the message it throws", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.code = "440652H\nforged log line";
+  assert.throws(() => parseSnapshot(payload), (error) => {
+    assert.ok(!error.message.includes("\n"), "error message carries a newline");
+    return true;
+  });
+});
+
+test("parseSnapshot caps the upstream fragment it repeats back", () => {
+  const payload = allClearPayload();
+  payload.features[0].attributes.code = "X".repeat(5000);
+  assert.throws(() => parseSnapshot(payload), (error) => {
+    assert.ok(error.message.length < 200, "error message is unbounded");
+    return true;
+  });
+});
+
 test("fetchSnapshot returns rows and the service edit stamp on success", async () => {
   const body = allClearPayload();
   body.editingInfo = { lastEditDate: 1789000030000 };
@@ -121,6 +182,15 @@ test("fetchSnapshot reports a transport failure without throwing", async () => {
   assert.match(result.error, /network unreachable/);
 });
 
+test("fetchSnapshot records a non-Error throw without losing the reason", async () => {
+  const result = await fetchSnapshot(async () => {
+    throw "upstream refused";
+  });
+  assert.equal(result.rows, null);
+  assert.match(result.error, /upstream refused/);
+  assert.ok(!result.error.includes("undefined"));
+});
+
 test("fetchSnapshot gives the upstream read a deadline", async () => {
   // Without a deadline a stalled upstream holds the invocation until the
   // runtime kills it, before the failed run reaches D1. The absent poll_run
@@ -134,7 +204,7 @@ test("fetchSnapshot gives the upstream read a deadline", async () => {
   assert.equal(typeof options.signal.aborted, "boolean");
 });
 
-test("fetchSnapshot rejects an oversized body before parsing it", async () => {
+test("fetchSnapshot rejects an oversized declared length before parsing", async () => {
   let parsed = false;
   const result = await fetchSnapshot(async () => ({
     ok: true,
@@ -161,10 +231,9 @@ test("fetchSnapshot accepts a body within the size bound", async () => {
 });
 
 test("fetchSnapshot bounds a body that declares no length", async () => {
-  // A real Response exercises the streaming path. Chunked transfer encoding
-  // and an absent content-length both leave declaredLength null, so the
-  // byte counter is the only thing standing between an oversized body and
-  // an out-of-memory kill that would leave no poll_run row behind.
+  // A stream carries no content-length, so declaredLength returns null and the
+  // byte counter is the only thing between an oversized body and an
+  // out-of-memory kill, which would leave no poll_run row behind.
   const chunk = new TextEncoder().encode("x".repeat(256 * 1024));
   let sent = 0;
   const stream = new ReadableStream({
@@ -192,64 +261,6 @@ test("fetchSnapshot parses a streamed body within the bound", async () => {
   const result = await fetchSnapshot(async () => response);
   assert.equal(result.rows.length, CORRIDOR_CROSSING_COUNT);
   assert.equal(result.error, null);
-});
-
-test("readText strips separators a parser treats as line terminators", () => {
-  const payload = allClearPayload();
-  // U+2028 and U+2029 end a line for a JavaScript parser and several log
-  // viewers, so an ASCII-only class would narrow the forging rather than
-  // close it. U+202E reverses rendering order.
-  payload.features[0].attributes.timeToClear = "5 MIN X‮Y";
-  const rows = parseSnapshot(payload);
-  for (const forbidden of [" ", " ", "‮"]) {
-    assert.ok(
-      !rows[0].feedTimeToClear.includes(forbidden),
-      `stored text retained ${JSON.stringify(forbidden)}`,
-    );
-  }
-});
-
-test("fetchSnapshot records a non-Error throw without losing the reason", async () => {
-  const result = await fetchSnapshot(async () => {
-    throw "upstream refused";
-  });
-  assert.equal(result.rows, null);
-  assert.match(result.error, /upstream refused/);
-  assert.ok(!result.error.includes("undefined"));
-});
-
-test("parseSnapshot rejects a null attribute bag with its own diagnostic", () => {
-  // typeof null is "object", so this case needs its own guard. Without it the
-  // row raises a runtime TypeError instead of this message.
-  const payload = allClearPayload();
-  payload.features[0].attributes = null;
-  assert.throws(() => parseSnapshot(payload), /feature has no attributes/);
-});
-
-test("parseSnapshot strips control characters from stored text", () => {
-  const payload = allClearPayload();
-  payload.features[0].attributes.timeToClear = "5\nMIN\r\nINJECTED";
-  const rows = parseSnapshot(payload);
-  assert.ok(!rows[0].feedTimeToClear.includes("\n"));
-  assert.ok(!rows[0].feedTimeToClear.includes("\r"));
-});
-
-test("parseSnapshot keeps newlines out of the message it throws", () => {
-  const payload = allClearPayload();
-  payload.features[0].attributes.code = "440652H\nforged log line";
-  assert.throws(() => parseSnapshot(payload), (error) => {
-    assert.ok(!error.message.includes("\n"), "error message carries a newline");
-    return true;
-  });
-});
-
-test("parseSnapshot caps the upstream fragment it repeats back", () => {
-  const payload = allClearPayload();
-  payload.features[0].attributes.code = "X".repeat(5000);
-  assert.throws(() => parseSnapshot(payload), (error) => {
-    assert.ok(error.message.length < 200, "error message is unbounded");
-    return true;
-  });
 });
 
 /** Return a fetch stub yielding one status and body. */

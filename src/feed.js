@@ -47,9 +47,16 @@ const VALID_STATUSES = Object.freeze(new Set(["clear", "blocked"]));
  * and the byte order mark. Restricting the class to ASCII would narrow the
  * record-boundary forging this guards against rather than close it, since
  * U+2028 and U+2029 end a line for those readers just as a newline does.
+ *
+ * The class is built from a string of escape sequences rather than written as
+ * a regular expression literal. Spelling those separators as themselves would
+ * place a line terminator inside the literal and end it early, which is the
+ * very hazard this class removes.
  */
-const CONTROL_CHARACTERS =
-  /[\u0000-\u001F\u007F  ‪-‮﻿]/g;
+const CONTROL_CHARACTERS = new RegExp(
+  "[\\u0000-\\u001F\\u007F\\u2028\\u2029\\u202A-\\u202E\\uFEFF]",
+  "g",
+);
 
 /** Longest upstream fragment repeated back inside an error message. */
 const MAX_DESCRIBED_CHARS = 80;
